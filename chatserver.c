@@ -10,8 +10,8 @@
 
 void *recv_climsg(void *arg);
 
-/* 创建实时在线列表，最大只能有50个人同时在线 */
-ONLINE_TYPE online_list[50];
+/* 创建实时在线列表，最大只能有ONLINE_MAX个人同时在线 */
+ONLINE_TYPE online_list[ONLINE_MAX];
 
 int main(int argc, char **argv)
 {
@@ -47,7 +47,8 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-    printf("欢迎使用聊天系统！\n");
+    printf("欢迎使用聊天室系统！\n");
+	/* 注册线程 */
     pthread_t recvmsg_thread;
     pthread_create(&recvmsg_thread, NULL, recv_climsg, (void *)&ser_sockfd);
     while(1);
@@ -74,7 +75,7 @@ void *recv_climsg(void *arg)
     int num = 0;
     while (1)
 	{
-        /* 接收信息，该信息是什么类型由结构体决定 */
+        /* 接收信息，放入cli_msg结构体内,该信息是什么类型由结构体决定 */
         num = recvfrom(ser_sockfd, &cli_msg, sizeof(CLIMSG_TYPE), 0, (struct sockaddr *)&cli_addr, &cli_addrlen);
         if (num < 0)
         {
@@ -85,18 +86,10 @@ void *recv_climsg(void *arg)
         ser_msg.ret = RET_SUCCESS;
         ser_msg.msg = cli_msg.msg;
 
-        /* 显示接收的信息，用于调试 */
-        // printf("opt:%d\n", cli_msg.opt);
-        // printf("fromuser:%s\n", cli_msg.msg.fromuser);
-        // printf("touser:%s\n", cli_msg.msg.touser);
-        // printf("msg_text:%s\n", cli_msg.msg.msg_text);
-        // printf("ip:%s\n", inet_ntoa(cli_addr.sin_addr));
-        // printf("port:%hu\n", ntohs(cli_addr.sin_port));
-
         switch (cli_msg.opt) {
             /* 登录操作 */
             case OPT_LOGIN:
-                for (i = 0; i < 50; i++)
+                for (i = 0; i < ONLINE_MAX; i++)
                 {
                     if (online_list[i].onlineflag == 1)
                     {
@@ -110,8 +103,9 @@ void *recv_climsg(void *arg)
                         break;
                     }
                 }
-                if (i == 50)
+                if (i == ONLINE_MAX)
                 {
+
                     printf("最大在线人数已满");
                 }
                 else
@@ -121,7 +115,7 @@ void *recv_climsg(void *arg)
                 break;
 
             case OPT_LOGOUT:
-                for (i = 0; i < 50; i++)
+                for (i = 0; i < ONLINE_MAX; i++)
                 {
                     /*如果不在线，则跳过 */
                     if (online_list[i].onlineflag != 1)
@@ -138,11 +132,6 @@ void *recv_climsg(void *arg)
                     /* 如果在线且名字匹配则将该节点清空 */
                     else
                     {
-                        // printf("logout:");
-                        // printf("onlineflag:%d\n", online_list[i].onlineflag);
-                        // printf("username:%s\n", online_list[i].username);
-                        // printf("ip:%s\n", inet_ntoa(online_list[i].cli_addr.sin_addr));
-                        // printf("port:%hu\n", ntohs(online_list[i].cli_addr.sin_port));
                         printf("%s退出聊天\n", online_list[i].username);
                         memset(online_list+i, 0, sizeof(ONLINE_TYPE));
                     }
@@ -150,15 +139,16 @@ void *recv_climsg(void *arg)
                 break;
 
             case OPT_CHAT:
-                for (i = 0; i < 50; i++)
+                for (i = 0; i < ONLINE_MAX; i++)
                 {
                     /* 不在线则跳过 */
                     if (online_list[i].onlineflag != 1)
                     {
                         continue;
                     }
-                    /* 如果对方名字为public，则发给每一个人 */
-                    else if (!strcmp(ser_msg.msg.touser, "public"))
+
+                    /* 如果对方名字为public，则发给每一个人，除了自己 */
+                    else if ((!strcmp(ser_msg.msg.touser, "public")) && (strcmp(ser_msg.msg.fromuser, online_list[i].username) != 0))
                     {
                         num = sendto(ser_sockfd, &ser_msg, sizeof(SERMSG_TYPE), 0, (struct sockaddr *)&online_list[i].cli_addr, sizeof(struct sockaddr_in));
                         if (num < 0)
@@ -167,6 +157,7 @@ void *recv_climsg(void *arg)
                             exit(-1);
                         }
                     }
+
                     /* 如果对方名字不为pubulic且 */
                     else if (strcmp(online_list[i].username, ser_msg.msg.touser) != 0)
                     {
