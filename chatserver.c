@@ -48,7 +48,7 @@ int main(int argc, char **argv)
 	}
 
     printf("欢迎使用聊天室系统！\n");
-	/* 注册线程 */
+	/* 注册线程，该线程用来接收消息 */
     pthread_t recvmsg_thread;
     pthread_create(&recvmsg_thread, NULL, recv_climsg, (void *)&ser_sockfd);
     while(1);
@@ -89,27 +89,18 @@ void *recv_climsg(void *arg)
         switch (cli_msg.opt) {
             /* 登录操作 */
             case OPT_LOGIN:
-                for (i = 0; i < ONLINE_MAX; i++)
-                {
-                    if (online_list[i].onlineflag == 1)
-                    {
+                for (i = 0; i < ONLINE_MAX; i++) {
+                    if (online_list[i].onlineflag == 1) {
                         continue;
                     }
-                    else
-                    {
-                        online_list[i].onlineflag = 1;
-                        strcpy(online_list[i].username, cli_msg.msg.fromuser);
-                        memcpy(&online_list[i].cli_addr, &cli_addr, sizeof(struct sockaddr_in));
-                        break;
-                    }
+                    online_list[i].onlineflag = 1;
+                    strcpy(online_list[i].username, cli_msg.msg.fromuser);
+                    memcpy(&online_list[i].cli_addr, &cli_addr, sizeof(struct sockaddr_in));
+                    break;
                 }
-                if (i == ONLINE_MAX)
-                {
-
+                if (i == ONLINE_MAX) {
                     printf("最大在线人数已满");
-                }
-                else
-                {
+                } else {
                     printf("%s加入聊天\n", online_list[i].username);
                 }
                 break;
@@ -118,20 +109,17 @@ void *recv_climsg(void *arg)
                 for (i = 0; i < ONLINE_MAX; i++)
                 {
                     /*如果不在线，则跳过 */
-                    if (online_list[i].onlineflag != 1)
-                    {
+                    if (online_list[i].onlineflag != 1) {
                         continue;
                     }
 
                     /* 如果在线但名字不匹配则跳过 */
-                    else if (strcmp(online_list[i].username, ser_msg.msg.fromuser) != 0)
-                    {
+                    else if (strcmp(online_list[i].username, ser_msg.msg.fromuser) != 0) {
                         continue;
                     }
 
                     /* 如果在线且名字匹配则将该节点清空 */
-                    else
-                    {
+                    else {
                         printf("%s退出聊天\n", online_list[i].username);
                         memset(online_list+i, 0, sizeof(ONLINE_TYPE));
                     }
@@ -139,17 +127,13 @@ void *recv_climsg(void *arg)
                 break;
 
             case OPT_CHAT:
-                for (i = 0; i < ONLINE_MAX; i++)
-                {
+                for (i = 0; i < ONLINE_MAX; i++) {
                     /* 不在线则跳过 */
                     if (online_list[i].onlineflag != 1)
-                    {
                         continue;
-                    }
 
                     /* 如果对方名字为public，则发给每一个人，除了自己 */
-                    else if ((!strcmp(ser_msg.msg.touser, "public")) && (strcmp(ser_msg.msg.fromuser, online_list[i].username) != 0))
-                    {
+                    else if ((!strcmp(ser_msg.msg.touser, "public")) && (strcmp(ser_msg.msg.fromuser, online_list[i].username) != 0)) {
                         num = sendto(ser_sockfd, &ser_msg, sizeof(SERMSG_TYPE), 0, (struct sockaddr *)&online_list[i].cli_addr, sizeof(struct sockaddr_in));
                         if (num < 0)
                         {
@@ -158,13 +142,10 @@ void *recv_climsg(void *arg)
                         }
                     }
 
-                    /* 如果对方名字不为pubulic且 */
+                    /* 如果对方名字不为pubulic且当前的表项不为对方 */
                     else if (strcmp(online_list[i].username, ser_msg.msg.touser) != 0)
-                    {
                         continue;
-                    }
-                    else
-                    {
+                    else {
                         num = sendto(ser_sockfd, &ser_msg, sizeof(SERMSG_TYPE), 0, (struct sockaddr *)&online_list[i].cli_addr, sizeof(struct sockaddr_in));
                         if (num < 0)
                         {
